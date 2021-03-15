@@ -5,8 +5,6 @@ package appmention
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"html"
 	"log"
 	"net/http"
 	"os"
@@ -57,6 +55,11 @@ type SlackAppMentionEvent struct {
 	EventTs string `json:"event_ts"`
 }
 
+type MentionMessage struct {
+	Text string `json:"text"`
+	Ts string `json:"ts"`
+	Channel string `json:"channel"`
+}
 
 func AppMention(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
@@ -76,13 +79,21 @@ func AppMention(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "400 Bad Request", http.StatusBadRequest)
 		return
 	}
-	m := &pubsub.Message {
-		Data: []byte("Test message"),
-	}
-	id, err := topic.Publish(r.Context(), m).Get(r.Context())
+	var mm = MentionMessage{ Text: d.Text, Ts: d.Ts, Channel: d.Channel }
+
+	mmp, err := json.Marshal(mm)
 	if err != nil {
 		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-	fmt.Fprint(w, html.EscapeString(id))
+	psm := &pubsub.Message {
+		Data: mmp,
+	}
+
+	_, err = topic.Publish(r.Context(), psm).Get(r.Context())
+	if err != nil {
+		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusAccepted)
 }
